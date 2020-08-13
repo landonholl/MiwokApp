@@ -15,6 +15,8 @@
  */
 package com.example.android.miwok;
 
+import android.content.Context;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -26,12 +28,43 @@ import java.util.ArrayList;
 
 public class ColorsActivity extends AppCompatActivity {
 
+    private AudioManager mAudioManager;
+
     private MediaPlayer mMediaPlayer;
+
+    AudioManager.OnAudioFocusChangeListener mOnAudioFocusChangeListener =
+            new AudioManager.OnAudioFocusChangeListener() {
+
+                public void onAudioFocusChange(int focusChange) {
+
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT ||
+                            focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+                        mMediaPlayer.pause();
+                        mMediaPlayer.seekTo(0);
+
+                    } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN){
+                        mMediaPlayer.start();
+
+                    } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS){
+                        releaseMediaPlayer();
+                    }
+                }
+
+            };
+
+    private MediaPlayer.OnCompletionListener mCompletionListener = new MediaPlayer.OnCompletionListener() {
+        @Override
+        public void onCompletion(MediaPlayer mediaPlayer) {
+            releaseMediaPlayer();
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.word_list);
+
+        mAudioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         // Create a list of words
         final ArrayList<Word> words = new ArrayList<Word>();
@@ -57,14 +90,62 @@ public class ColorsActivity extends AppCompatActivity {
         // {@link ListView} will display list items for each {@link Word} in the list.
         listView.setAdapter(adapter);
 
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener(){
-
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
+                releaseMediaPlayer();
+
+
                 Word word = words.get(position);
-                mMediaPlayer = MediaPlayer.create(ColorsActivity.this, word.getAudioResourceId());
-                mMediaPlayer.start();
+
+                releaseMediaPlayer();
+
+                // Request audio focus for playback
+                int result = mAudioManager.requestAudioFocus(mOnAudioFocusChangeListener,
+                        // Use the music stream.
+                        AudioManager.STREAM_MUSIC,
+                        // Request permanent focus.
+                        AudioManager.AUDIOFOCUS_GAIN);
+
+                if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    // We now have audio focus
+
+                    mMediaPlayer = MediaPlayer.create(ColorsActivity.this, word.getAudioResourceId());
+
+                    mMediaPlayer.start();
+
+
+                    mMediaPlayer.setOnCompletionListener(mCompletionListener);
+
+                }
             }
+
         });
+    }
+
+    @Override
+    protected void onStop(){
+        super.onStop();
+        releaseMediaPlayer();
+    }
+
+    /**
+     * Clean up the media player by releasing its resources.
+     */
+    private void releaseMediaPlayer() {
+        // If the media player is not null, then it may be currently playing a sound.
+        if (mMediaPlayer != null) {
+            // Regardless of the current state of the media player, release its resources
+            // because we no longer need it.
+            mMediaPlayer.release();
+
+            // Set the media player back to null. For our code, we've decided that
+            // setting the media player to null is an easy way to tell that the media player
+            // is not configured to play an audio file at the moment.
+            mMediaPlayer = null;
+
+            //abandon audio foucs
+            mAudioManager.abandonAudioFocus(mOnAudioFocusChangeListener);
+        }
     }
 }
