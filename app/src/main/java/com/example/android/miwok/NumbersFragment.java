@@ -124,7 +124,6 @@ public class NumbersFragment extends Fragment {
         // Inflate the layout for this fragment
         View rootView = inflater.inflate(R.layout.word_list, container, false);
 
-
         mAudioManager = (AudioManager) getActivity().getSystemService(Context.AUDIO_SERVICE);
 
         // Create a list of words
